@@ -38,7 +38,7 @@ A binary image classification model that detects whether an image contains a doc
 </p>
 
 <p align="center">
-  <img src="screenshots/nondocument.png" width="45%" />
+  <img src="screenshots/nondocument.jpeg" width="45%" />
   <img src="screenshots/comparison.jpeg" width="45%" />
 </p>
 
