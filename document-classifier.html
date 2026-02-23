@@ -1,0 +1,1141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document Classifier</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #07090f;
+        --surf: #0d1422;
+        --surf2: #111827;
+        --border: rgba(56, 189, 248, 0.13);
+        --azure: #38bdf8;
+        --azure2: #0ea5e9;
+        --text: #dce8f5;
+        --muted: #5a7a9a;
+        --red: #f87171;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Inter", sans-serif;
+      }
+
+      /* faint top glow */
+      body::before {
+        content: "";
+        position: fixed;
+        top: -180px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 900px;
+        height: 400px;
+        background: radial-gradient(
+          ellipse,
+          rgba(56, 189, 248, 0.055) 0%,
+          transparent 70%
+        );
+        pointer-events: none;
+      }
+
+      /* ── ROOT LAYOUT: two rows filling viewport ── */
+      .layout {
+        display: grid;
+        grid-template-rows: 1fr auto; /* top section flexible, bottom fixed-ish */
+        height: 100vh;
+        padding: 16px;
+        gap: 12px;
+      }
+
+      /* ── TOP SECTION: featured v3 ── */
+      .top {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        min-height: 0;
+      }
+
+      /* ── BOTTOM SECTION: sync bar + trio ── */
+      .bottom {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        /* height is driven by content, kept compact */
+      }
+
+      /* ── PANEL (shared card style) ── */
+      .panel {
+        background: var(--surf);
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        min-height: 0;
+      }
+
+      .panel.featured-left {
+        border-color: rgba(56, 189, 248, 0.22);
+      }
+      .panel.featured-right {
+        border-color: rgba(56, 189, 248, 0.22);
+      }
+
+      .panel-head {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .panel-head .title {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .panel-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 12px;
+        gap: 10px;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* ── TAGS ── */
+      .tag {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 100px;
+        background: rgba(56, 189, 248, 0.1);
+        color: var(--azure);
+        border: 1px solid rgba(56, 189, 248, 0.22);
+      }
+
+      .tag.latest {
+        background: linear-gradient(
+          135deg,
+          rgba(56, 189, 248, 0.18),
+          rgba(3, 105, 161, 0.18)
+        );
+        box-shadow: 0 0 8px rgba(56, 189, 248, 0.12);
+      }
+
+      .tag.v1,
+      .tag.v2 {
+        background: rgba(56, 189, 248, 0.06);
+        color: var(--muted);
+        border-color: rgba(56, 189, 248, 0.1);
+      }
+
+      .section-label {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-left: 2px;
+      }
+
+      /* ── DROP ZONE ── */
+      .drop-zone {
+        flex: 1;
+        border: 2px dashed var(--border);
+        border-radius: 10px;
+        background: var(--surf2);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+        min-height: 0;
+      }
+
+      .drop-zone:hover {
+        border-color: var(--azure);
+        background: rgba(56, 189, 248, 0.03);
+      }
+      .drop-zone.active {
+        border-color: var(--azure);
+        background: rgba(56, 189, 248, 0.07);
+      }
+
+      .drop-zone input[type="file"] {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+        z-index: 5;
+      }
+
+      .drop-ph {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        text-align: center;
+        padding: 12px;
+      }
+
+      .drop-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 9px;
+        background: rgba(56, 189, 248, 0.09);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        margin-bottom: 2px;
+        transition: transform 0.2s;
+      }
+
+      .drop-zone:hover .drop-icon {
+        transform: translateY(-2px);
+      }
+      .drop-ph p {
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .drop-ph small {
+        font-size: 10px;
+        color: var(--muted);
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .drop-zone img.preview {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: 6px;
+        display: none;
+      }
+
+      .drop-zone img.preview.show {
+        display: block;
+      }
+
+      .clear-btn {
+        position: absolute;
+        top: 7px;
+        right: 7px;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(7, 9, 15, 0.85);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        transition:
+          color 0.15s,
+          border-color 0.15s;
+        line-height: 1;
+      }
+
+      .clear-btn:hover {
+        color: var(--red);
+        border-color: var(--red);
+      }
+      .clear-btn.show {
+        display: flex;
+      }
+
+      /* ── RESULTS ── */
+      .results-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 10px;
+        min-height: 0;
+      }
+
+      .state-empty,
+      .state-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        flex: 1;
+      }
+
+      .state-empty-icon {
+        font-size: 26px;
+        opacity: 0.2;
+      }
+
+      .state-loading {
+        flex-direction: row;
+        color: var(--azure);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+      }
+      .state-loading.hide,
+      .state-empty.hide {
+        display: none;
+      }
+
+      .spin {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(56, 189, 248, 0.2);
+        border-top-color: var(--azure);
+        border-radius: 50%;
+        animation: spin 0.65s linear infinite;
+        flex-shrink: 0;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .results {
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .results.show {
+        display: flex;
+        animation: fadeUp 0.3s ease;
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .verdict {
+        padding: 9px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .verdict.doc {
+        background: rgba(56, 189, 248, 0.09);
+        border: 1px solid rgba(56, 189, 248, 0.22);
+        color: var(--azure);
+      }
+      .verdict.nondoc {
+        background: rgba(90, 122, 154, 0.09);
+        border: 1px solid rgba(90, 122, 154, 0.18);
+        color: var(--muted);
+      }
+
+      /* compact verdict for trio */
+      .results.sm .verdict {
+        font-size: 11px;
+        padding: 7px 10px;
+      }
+
+      .bar-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .bar-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .bar-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .bar-label {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+      .dot.doc {
+        background: var(--azure);
+      }
+      .dot.nondoc {
+        background: #2a3f55;
+        border: 1px solid #3a5570;
+      }
+
+      .bar-pct {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .bar-pct.doc {
+        color: var(--azure);
+      }
+      .bar-pct.nondoc {
+        color: #486070;
+      }
+
+      .track {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 100px;
+        overflow: hidden;
+      }
+
+      .fill {
+        height: 100%;
+        border-radius: 100px;
+        width: 0;
+        transition: width 0.75s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .fill.doc {
+        background: linear-gradient(90deg, #0369a1, var(--azure));
+        box-shadow: 0 0 6px rgba(56, 189, 248, 0.45);
+      }
+      .fill.nondoc {
+        background: linear-gradient(90deg, #162032, #253347);
+      }
+
+      .err-msg {
+        display: none;
+        padding: 7px 10px;
+        border-radius: 7px;
+        font-size: 11px;
+        background: rgba(248, 113, 113, 0.07);
+        border: 1px solid rgba(248, 113, 113, 0.18);
+        color: var(--red);
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* ── SYNC BAR inside compare header ── */
+      .compare-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 2px;
+      }
+
+      .sync-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .sync-name {
+        font-size: 11px;
+        color: var(--muted);
+        font-family: "JetBrains Mono", monospace;
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* ── BUTTONS ── */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 13px;
+        border-radius: 7px;
+        font-family: "Inter", sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        outline: none;
+        transition: all 0.15s;
+        white-space: nowrap;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--azure2), #0369a1);
+        color: #fff;
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.18);
+      }
+
+      .btn-primary:hover {
+        filter: brightness(1.1);
+        box-shadow: 0 0 18px rgba(56, 189, 248, 0.3);
+      }
+      .btn-primary:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+        filter: none;
+        box-shadow: none;
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--azure);
+        border: 1px solid var(--border);
+      }
+
+      .btn-ghost:hover {
+        background: rgba(56, 189, 248, 0.06);
+        border-color: rgba(56, 189, 248, 0.3);
+      }
+
+      .btn-file {
+        position: relative;
+        overflow: hidden;
+      }
+      .btn-file input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      /* ── DIVIDER between top/bottom ── */
+      .divider {
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--border),
+          transparent
+        );
+        flex-shrink: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <!-- ══ TOP: Featured V3 ══ -->
+      <div class="top">
+        <!-- Left: upload -->
+        <div class="panel featured-left">
+          <div class="panel-head">
+            <span class="title">Document Classifier</span>
+            <span class="tag latest">v3 · Latest</span>
+            <span
+              class="tag"
+              style="
+                color: var(--muted);
+                border-color: rgba(90, 122, 154, 0.15);
+                background: transparent;
+                font-size: 9px;
+                margin-left: auto;
+              "
+              >v3.pt</span
+            >
+          </div>
+          <div class="panel-body">
+            <div class="drop-zone" id="dz-v3">
+              <input type="file" accept="image/*" id="fi-v3" />
+              <div class="drop-ph" id="ph-v3">
+                <div class="drop-icon">⬆</div>
+                <p>Click or drag &amp; drop an image</p>
+                <small>PNG · JPG · WEBP</small>
+              </div>
+              <img class="preview" id="prev-v3" alt="" />
+              <button
+                class="clear-btn"
+                id="clr-v3"
+                onclick="clearCard(event, 'v3')"
+              >
+                ✕
+              </button>
+            </div>
+            <div class="err-msg" id="err-v3"></div>
+          </div>
+        </div>
+
+        <!-- Right: results -->
+        <div class="panel featured-right">
+          <div class="panel-head">
+            <span class="title">Result</span>
+          </div>
+          <div class="panel-body">
+            <div class="results-panel">
+              <div class="state-empty" id="empty-v3">
+                <div class="state-empty-icon">🔍</div>
+                Upload an image to classify
+              </div>
+              <div class="state-loading hide" id="loading-v3">
+                <div class="spin"></div>
+                &nbsp;Analyzing…
+              </div>
+              <div class="results" id="res-v3">
+                <div class="verdict" id="verd-v3"></div>
+                <div class="bar-group">
+                  <div class="bar-row">
+                    <div class="bar-meta">
+                      <span class="bar-label"
+                        ><span class="dot doc"></span>Document</span
+                      >
+                      <span class="bar-pct doc" id="p-doc-v3">—</span>
+                    </div>
+                    <div class="track">
+                      <div class="fill doc" id="b-doc-v3"></div>
+                    </div>
+                  </div>
+                  <div class="bar-row">
+                    <div class="bar-meta">
+                      <span class="bar-label"
+                        ><span class="dot nondoc"></span>Non-Document</span
+                      >
+                      <span class="bar-pct nondoc" id="p-non-v3">—</span>
+                    </div>
+                    <div class="track">
+                      <div class="fill nondoc" id="b-non-v3"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /top -->
+
+      <!-- ══ BOTTOM: Compare trio ══ -->
+      <div>
+        <!-- Compare header -->
+        <div class="compare-header" style="margin-bottom: 10px">
+          <span class="section-label">Compare All Versions</span>
+          <div class="sync-row">
+            <span class="sync-name" id="sync-name">—</span>
+            <label class="btn btn-ghost btn-file">
+              📂 Upload for all
+              <input
+                type="file"
+                accept="image/*"
+                id="fi-sync"
+                onchange="syncUpload(this)"
+              />
+            </label>
+            <button
+              class="btn btn-primary"
+              id="btn-sync"
+              onclick="runSync()"
+              disabled
+            >
+              ▶ Run All
+            </button>
+          </div>
+        </div>
+
+        <div class="bottom">
+          <!-- V1 -->
+          <div class="panel">
+            <div class="panel-head">
+              <span class="title">Classifier v1</span>
+              <span class="tag v1">v1</span>
+            </div>
+            <div class="panel-body" style="flex-direction: row; gap: 10px">
+              <div
+                style="
+                  flex: 1;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 8px;
+                  min-width: 0;
+                "
+              >
+                <div
+                  class="drop-zone"
+                  id="dz-v1"
+                  style="flex: 1; min-height: 90px"
+                >
+                  <input type="file" accept="image/*" id="fi-v1" />
+                  <div class="drop-ph" id="ph-v1">
+                    <div
+                      class="drop-icon"
+                      style="width: 28px; height: 28px; font-size: 13px"
+                    >
+                      ⬆
+                    </div>
+                    <p style="font-size: 11px">Click or drop</p>
+                  </div>
+                  <img class="preview" id="prev-v1" alt="" />
+                  <button
+                    class="clear-btn"
+                    id="clr-v1"
+                    onclick="clearCard(event, 'v1')"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div class="err-msg" id="err-v1"></div>
+              </div>
+              <div
+                style="
+                  flex: 1;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                  min-width: 0;
+                "
+              >
+                <div
+                  class="state-empty"
+                  id="empty-v1"
+                  style="font-size: 11px; gap: 4px"
+                >
+                  <div class="state-empty-icon" style="font-size: 18px">🔍</div>
+                  No image
+                </div>
+                <div
+                  class="state-loading hide"
+                  id="loading-v1"
+                  style="font-size: 11px"
+                >
+                  <div class="spin" style="width: 13px; height: 13px"></div>
+                  &nbsp;Analyzing…
+                </div>
+                <div class="results sm" id="res-v1">
+                  <div class="verdict" id="verd-v1"></div>
+                  <div class="bar-group">
+                    <div class="bar-row">
+                      <div class="bar-meta">
+                        <span class="bar-label"
+                          ><span class="dot doc"></span>Doc</span
+                        >
+                        <span class="bar-pct doc" id="p-doc-v1">—</span>
+                      </div>
+                      <div class="track">
+                        <div class="fill doc" id="b-doc-v1"></div>
+                      </div>
+                    </div>
+                    <div class="bar-row">
+                      <div class="bar-meta">
+                        <span class="bar-label"
+                          ><span class="dot nondoc"></span>Non</span
+                        >
+                        <span class="bar-pct nondoc" id="p-non-v1">—</span>
+                      </div>
+                      <div class="track">
+                        <div class="fill nondoc" id="b-non-v1"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- V2 -->
+          <div class="panel">
+            <div class="panel-head">
+              <span class="title">Classifier v2</span>
+              <span class="tag v2">v2</span>
+            </div>
+            <div class="panel-body" style="flex-direction: row; gap: 10px">
+              <div
+                style="
+                  flex: 1;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 8px;
+                  min-width: 0;
+                "
+              >
+                <div
+                  class="drop-zone"
+                  id="dz-v2"
+                  style="flex: 1; min-height: 90px"
+                >
+                  <input type="file" accept="image/*" id="fi-v2" />
+                  <div class="drop-ph" id="ph-v2">
+                    <div
+                      class="drop-icon"
+                      style="width: 28px; height: 28px; font-size: 13px"
+                    >
+                      ⬆
+                    </div>
+                    <p style="font-size: 11px">Click or drop</p>
+                  </div>
+                  <img class="preview" id="prev-v2" alt="" />
+                  <button
+                    class="clear-btn"
+                    id="clr-v2"
+                    onclick="clearCard(event, 'v2')"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div class="err-msg" id="err-v2"></div>
+              </div>
+              <div
+                style="
+                  flex: 1;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                  min-width: 0;
+                "
+              >
+                <div
+                  class="state-empty"
+                  id="empty-v2"
+                  style="font-size: 11px; gap: 4px"
+                >
+                  <div class="state-empty-icon" style="font-size: 18px">🔍</div>
+                  No image
+                </div>
+                <div
+                  class="state-loading hide"
+                  id="loading-v2"
+                  style="font-size: 11px"
+                >
+                  <div class="spin" style="width: 13px; height: 13px"></div>
+                  &nbsp;Analyzing…
+                </div>
+                <div class="results sm" id="res-v2">
+                  <div class="verdict" id="verd-v2"></div>
+                  <div class="bar-group">
+                    <div class="bar-row">
+                      <div class="bar-meta">
+                        <span class="bar-label"
+                          ><span class="dot doc"></span>Doc</span
+                        >
+                        <span class="bar-pct doc" id="p-doc-v2">—</span>
+                      </div>
+                      <div class="track">
+                        <div class="fill doc" id="b-doc-v2"></div>
+                      </div>
+                    </div>
+                    <div class="bar-row">
+                      <div class="bar-meta">
+                        <span class="bar-label"
+                          ><span class="dot nondoc"></span>Non</span
+                        >
+                        <span class="bar-pct nondoc" id="p-non-v2">—</span>
+                      </div>
+                      <div class="track">
+                        <div class="fill nondoc" id="b-non-v2"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- V3s -->
+          <div class="panel">
+            <div class="panel-head">
+              <span class="title">Classifier v3</span>
+              <span class="tag latest">v3 ★</span>
+            </div>
+            <div class="panel-body" style="flex-direction: row; gap: 10px">
+              <div
+                style="
+                  flex: 1;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 8px;
+                  min-width: 0;
+                "
+              >
+                <div
+                  class="drop-zone"
+                  id="dz-v3s"
+                  style="flex: 1; min-height: 90px"
+                >
+                  <input type="file" accept="image/*" id="fi-v3s" />
+                  <div class="drop-ph" id="ph-v3s">
+                    <div
+                      class="drop-icon"
+                      style="width: 28px; height: 28px; font-size: 13px"
+                    >
+                      ⬆
+                    </div>
+                    <p style="font-size: 11px">Click or drop</p>
+                  </div>
+                  <img class="preview" id="prev-v3s" alt="" />
+                  <button
+                    class="clear-btn"
+                    id="clr-v3s"
+                    onclick="clearCard(event, 'v3s')"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div class="err-msg" id="err-v3s"></div>
+              </div>
+              <div
+                style="
+                  flex: 1;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                  min-width: 0;
+                "
+              >
+                <div
+                  class="state-empty"
+                  id="empty-v3s"
+                  style="font-size: 11px; gap: 4px"
+                >
+                  <div class="state-empty-icon" style="font-size: 18px">🔍</div>
+                  No image
+                </div>
+                <div
+                  class="state-loading hide"
+                  id="loading-v3s"
+                  style="font-size: 11px"
+                >
+                  <div class="spin" style="width: 13px; height: 13px"></div>
+                  &nbsp;Analyzing…
+                </div>
+                <div class="results sm" id="res-v3s">
+                  <div class="verdict" id="verd-v3s"></div>
+                  <div class="bar-group">
+                    <div class="bar-row">
+                      <div class="bar-meta">
+                        <span class="bar-label"
+                          ><span class="dot doc"></span>Doc</span
+                        >
+                        <span class="bar-pct doc" id="p-doc-v3s">—</span>
+                      </div>
+                      <div class="track">
+                        <div class="fill doc" id="b-doc-v3s"></div>
+                      </div>
+                    </div>
+                    <div class="bar-row">
+                      <div class="bar-meta">
+                        <span class="bar-label"
+                          ><span class="dot nondoc"></span>Non</span
+                        >
+                        <span class="bar-pct nondoc" id="p-non-v3s">—</span>
+                      </div>
+                      <div class="track">
+                        <div class="fill nondoc" id="b-non-v3s"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /bottom grid -->
+      </div>
+    </div>
+    <!-- /layout -->
+
+    <script>
+      const API = {
+        v3: "http://localhost:8000/classify/v3",
+        v1: "http://localhost:8000/classify/v1",
+        v2: "http://localhost:8000/classify/v2",
+        v3s: "http://localhost:8000/classify/v3",
+      };
+
+      window._files = {};
+
+      // Wire inputs
+      ["v3", "v1", "v2", "v3s"].forEach((id) => {
+        const input = document.getElementById("fi-" + id);
+        const zone = document.getElementById("dz-" + id);
+
+        input.addEventListener("change", () => {
+          if (input.files[0]) loadAndClassify(id, input.files[0]);
+        });
+
+        zone.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          zone.classList.add("active");
+        });
+        zone.addEventListener("dragleave", () =>
+          zone.classList.remove("active"),
+        );
+        zone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          zone.classList.remove("active");
+          if (e.dataTransfer.files[0])
+            loadAndClassify(id, e.dataTransfer.files[0]);
+        });
+      });
+
+      // Sync
+      function syncUpload(input) {
+        if (!input.files[0]) return;
+        document.getElementById("sync-name").textContent = input.files[0].name;
+        document.getElementById("btn-sync").disabled = false;
+        ["v1", "v2", "v3s"].forEach((id) =>
+          loadAndClassify(id, input.files[0]),
+        );
+      }
+
+      function runSync() {
+        ["v1", "v2", "v3s"].forEach((id) => {
+          if (window._files[id]) classify(id, window._files[id]);
+        });
+      }
+
+      // Load + classify
+      function loadAndClassify(id, file) {
+        if (!file.type.startsWith("image/")) {
+          showErr(id, "Not a valid image.");
+          return;
+        }
+        hideErr(id);
+        window._files[id] = file;
+
+        const prev = document.getElementById("prev-" + id);
+        const ph = document.getElementById("ph-" + id);
+        const clr = document.getElementById("clr-" + id);
+        const inp = document.getElementById("fi-" + id);
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          prev.src = e.target.result;
+          prev.classList.add("show");
+          ph.style.display = "none";
+          clr.classList.add("show");
+          inp.style.display = "none";
+        };
+        reader.readAsDataURL(file);
+
+        classify(id, file);
+      }
+
+      // Classify
+      async function classify(id, file) {
+        const emptyEl = document.getElementById("empty-" + id);
+        const loadingEl = document.getElementById("loading-" + id);
+        const resEl = document.getElementById("res-" + id);
+
+        emptyEl.style.display = "none";
+        resEl.classList.remove("show");
+        loadingEl.classList.remove("hide");
+        hideErr(id);
+
+        try {
+          const fd = new FormData();
+          fd.append("image", file);
+          const r = await fetch(API[id], { method: "POST", body: fd });
+          if (!r.ok) throw new Error("Server error " + r.status);
+          const d = await r.json();
+          showResults(id, d.document, d.nondocument);
+        } catch {
+          showErr(id, "Could not reach server — is server.py running?");
+          emptyEl.style.display = "flex";
+        } finally {
+          loadingEl.classList.add("hide");
+        }
+      }
+
+      // Show results
+      function showResults(id, doc, nondoc) {
+        document.getElementById("p-doc-" + id).textContent =
+          (doc * 100).toFixed(1) + "%";
+        document.getElementById("p-non-" + id).textContent =
+          (nondoc * 100).toFixed(1) + "%";
+
+        const verd = document.getElementById("verd-" + id);
+        if (doc >= nondoc) {
+          verd.className = "verdict doc";
+          verd.innerHTML = `<span>📄</span> Document — <strong>${(doc * 100).toFixed(1)}%</strong>`;
+        } else {
+          verd.className = "verdict nondoc";
+          verd.innerHTML = `<span>🖼</span> Non-Document — <strong>${(nondoc * 100).toFixed(1)}%</strong>`;
+        }
+
+        document.getElementById("res-" + id).classList.add("show");
+
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            document.getElementById("b-doc-" + id).style.width =
+              doc * 100 + "%";
+            document.getElementById("b-non-" + id).style.width =
+              nondoc * 100 + "%";
+          }),
+        );
+      }
+
+      // Clear
+      function clearCard(e, id) {
+        e.stopPropagation();
+        window._files[id] = null;
+
+        const inp = document.getElementById("fi-" + id);
+        inp.value = "";
+        inp.style.display = "";
+
+        document.getElementById("prev-" + id).src = "";
+        document.getElementById("prev-" + id).classList.remove("show");
+        document.getElementById("ph-" + id).style.display = "";
+        document.getElementById("clr-" + id).classList.remove("show");
+        document.getElementById("res-" + id).classList.remove("show");
+        document.getElementById("loading-" + id).classList.add("hide");
+        document.getElementById("empty-" + id).style.display = "flex";
+        document.getElementById("b-doc-" + id).style.width = "0";
+        document.getElementById("b-non-" + id).style.width = "0";
+        hideErr(id);
+      }
+
+      function showErr(id, msg) {
+        const el = document.getElementById("err-" + id);
+        if (el) {
+          el.textContent = "⚠ " + msg;
+          el.style.display = "block";
+        }
+      }
+      function hideErr(id) {
+        const el = document.getElementById("err-" + id);
+        if (el) el.style.display = "none";
+      }
+    </script>
+  </body>
+</html>
